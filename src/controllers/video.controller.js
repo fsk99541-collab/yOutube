@@ -94,16 +94,28 @@ const publishAVideo = asyncHandler(async (req, res) => {
         throw new ApiError("401", "All fields are required.")
     }
 
-    const videoFilePath = req.files?.videoFile?.[0]?.path;
-    const thumbnailPath = req.files?.thumbnail?.[0]?.path;
+    const videoFile = req.files?.videoFile?.[0];
+    const thumbnail = req.files?.thumbnail?.[0];
 
-    if (!videoFilePath || !thumbnailPath) {
+    if (!videoFile || !thumbnail) {
         throw new ApiError(400, "Video file and thumbnail are required.");
     }
 
-    const videoFileResponse = await uploadOnCloudinary(videoFilePath);
-    const thumbnailResponse = await uploadOnCloudinary(thumbnailPath);
+    // MIME validation
+    if (!videoFile.mimetype.startsWith("video/")) {
+        throw new ApiError(400, "Invalid video format");
+    }
+    if (!thumbnail.mimetype.startsWith("image/")) {
+        throw new ApiError(400, "Invalid image format");
+    }
 
+    if (videoFile.size > 100 * 1024 * 1024) {
+        throw new ApiError(400, "Video size exceeds limit");
+    }
+
+    const videoFileResponse = await uploadOnCloudinary(videoFile.buffer);
+    const thumbnailResponse = await uploadOnCloudinary(thumbnail.buffer);
+    
     if (!videoFileResponse || !thumbnailResponse) {
         throw new ApiError(401, "video or thumbnail upload failed.")
     }
@@ -112,8 +124,8 @@ const publishAVideo = asyncHandler(async (req, res) => {
         title: title,
         description: description,
         duration: videoFileResponse?.duration || 0.0,
-        videoFile: videoFileResponse?.url || "",
-        thumbnail: thumbnailResponse?.url || "",
+        videoFile: videoFileResponse?.secure_url || "",
+        thumbnail: thumbnailResponse?.secure_url || "",
         owner: req.user?._id
     });
     
@@ -143,28 +155,27 @@ const updateVideo = asyncHandler(async (req, res) => {
     const video = await Video.findById(videoId);
     if (!video) throw new ApiError(404, "Video doesn't exist.");
 
-    const thumbnailPath = req.file?.path;
+    const thumbnailBuffer = req.file?.buffer;
 
-    if (!thumbnailPath) {
+    if (!thumbnailBuffer) {
         throw new ApiError(404, "Thumbnail is missing.");
     }    
 
     const thumbnailResult = await removeFromCloudinary(video.thumbnail);
-    console.log(thumbnailResult.result);
+    // console.log(thumbnailResult.result);
     
     if (!thumbnailResult?.result) {
         throw new ApiError(400, "Thumbnail failed to delete.");
     }
 
-    const thumbnailResponse = await uploadOnCloudinary(thumbnailPath);
+    const thumbnailResponse = await uploadOnCloudinary(thumbnailBuffer);
 
     video.title = title;
     video.description = description;
-    video.thumbnail = thumbnailResponse?.url || "";
+    video.thumbnail = thumbnailResponse?.secure_url || "";
 
     await video.save();
     res.status(200).json(new ApiResponse(200, video, "Video updated successfully"))
-
 })
 
 const deleteVideo = asyncHandler(async (req, res) => {

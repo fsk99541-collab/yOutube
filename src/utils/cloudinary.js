@@ -1,5 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import streamifier from "streamifier";
+
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -7,19 +9,50 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadOnCloudinary = async (localFilePath) => {
+const uploadOnCloudinary = async (fileBuffer) => {
+    if(!fileBuffer) return null
     try {
-        if (!localFilePath) return null
-        const response = await cloudinary.uploader.upload(localFilePath, {
-            resource_type: "auto"
-        })
-        fs.unlinkSync(localFilePath)
+        const response = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "users",
+                    resource_type: "auto" // if doesn't set/ it will through null :case video
+                    // transformation: [{ quality: "auto", fetch_format: "auto" }],
+                },
+                (err, result) => {
+                    if (err) reject(err);
+                    else resolve(result);
+                }
+            );
+            streamifier.createReadStream(fileBuffer).pipe(stream);
+        });
         return response;
     } catch (error) {
-        fs.unlinkSync(localFilePath)
         return null;
     }
-}
+};
+
+
+        // const result = await streamUpload(req.file.buffer);
+        //  return res.json({
+        //    url: result.secure_url,
+        //    public_id: result.public_id,
+        //  });
+
+// This is for local but i am going to memory storage
+// const uploadOnCloudinary = async (localFilePath) => {
+//     try {
+//         if (!localFilePath) return null
+//         const response = await cloudinary.uploader.upload(localFilePath, {
+//             resource_type: "auto"
+//         })
+//         fs.unlinkSync(localFilePath)
+//         return response;
+//     } catch (error) {
+//         fs.unlinkSync(localFilePath)
+//         return null;
+//     }
+// }
 
 const removeFromCloudinary = async(imageUrl) => {
     if (!imageUrl) return null;

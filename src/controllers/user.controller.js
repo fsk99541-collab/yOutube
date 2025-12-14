@@ -22,7 +22,6 @@ const generateAccessAndRefreshToken = async (userId) => {
 const registerUser = asyncHandler(async (req, res) => {
     const { username, fullName, email, password } = req.body;
 
-
     if ([username, fullName, email, password].some((field) => field?.trim() === "")) {
         throw new ApiError(400, "All field must be required!");
     }
@@ -30,29 +29,29 @@ const registerUser = asyncHandler(async (req, res) => {
     const existingUser = await User.findOne({
         $or: [{ email }, { username }],
     });
-    if (existingUser) throw new ApiError(409, "User already Existed.");
+    if (existingUser) throw new ApiError(409, "User already Existed.")
 
-    const avatarLocalPath = req.files?.avatar?.[0]?.path;
-    let coverImageLocalPath; // = req.files?.coverImage[0]?.path;
+    const avatarBuffer = req.files?.avatar?.[0]?.buffer
+    const coverImageBuffer = req.files?.coverImage?.[0]?.buffer
 
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path;
+    if (!avatarBuffer) {
+        throw new ApiError(400, "Avatar file is required");
     }
 
-    if (!avatarLocalPath) throw new ApiError(400, "Avatar file is required.");
+    const avatar = await uploadOnCloudinary(avatarBuffer);
 
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-
-    if (!avatar) throw new ApiError(400, "Avatar upload failed");
+    let coverImage = null;
+    if (coverImageBuffer) {
+        coverImage = await uploadOnCloudinary(coverImageBuffer);
+    }
 
     const user = await User.create({
         username: username.toLowerCase(),
         fullName,
         email,
         password,
-        avatar: avatar.url,
-        coverImage: coverImage?.url || "",
+        avatar: avatar.secure_url,
+        coverImage: coverImage?.secure_url || "",
     });
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken");
