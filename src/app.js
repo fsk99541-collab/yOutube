@@ -32,4 +32,7 @@ app.use("/api/v1/playlist", playlistRouter)
 app.use("/api/v1/tweets", tweetRouter)
 app.use("/api/v1/subscriptions", subscriptionRouter)
 
+import { errorHandler } from "./middlewares/error.middle.js";
+app.use(errorHandler);
+
 export { app };
