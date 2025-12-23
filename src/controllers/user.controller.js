@@ -238,7 +238,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, avatar.url, "Avatar changed successfully."))
 });
 const updateUserCoverImage = asyncHandler(async (req, res) => {
-    const coverImageLocalPath = req.file?.path;
+    const coverImageLocalPath = req.file?.buffer;
 
     if (!coverImageLocalPath) {
         throw new ApiError(401, "Cover Image must be required!")
