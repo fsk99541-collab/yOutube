@@ -212,8 +212,8 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "Accout details changed successfully."))
 });
 const updateUserAvatar = asyncHandler(async (req, res) => {
-    const avatarLocalPath = req.file?.path;
-
+    const avatarLocalPath = req.file?.buffer;
+    
     if (!avatarLocalPath) {
         throw new ApiError(401, "Avatar must be required!")
     }
