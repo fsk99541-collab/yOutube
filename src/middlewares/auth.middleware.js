@@ -17,9 +17,10 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     if (!token) throw new ApiError(401, "Unauthorized request")
     
     let payload;
+    // crucial point as if somebody with expired token calls it or server restarted, it might throw Error!
     try {
         payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    } catch (error) {
+    } catch (err) {
         if (err.name === "TokenExpiredError") {
              throw new ApiError(401, "Token expired.")
         }
