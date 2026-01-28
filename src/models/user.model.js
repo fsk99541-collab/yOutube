@@ -88,4 +88,10 @@ userSchema.methods.generateRefreshToken = function () {
     )
 }
 
+// Todo: Store hashed refresh token. Compare using hash
+
+// userSchema.methods.hashToken = function (token) {
+//     return crypto.createHash("sha256").update(token).digest("hex");
+// };
+
 export const User = model("User", userSchema);

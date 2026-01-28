@@ -11,6 +11,7 @@ const generateAccessAndRefreshToken = async (userId) => {
         const user = await User.findById(userId);
         const refreshToken = user.generateRefreshToken();
         const accessToken = user.generateAccessToken();
+        // Todo: user.refreshToken = user.hashToken(refreshToken)
         user.refreshToken = refreshToken;
         await user.save({ validateBeforeSave: false });
         return { accessToken, refreshToken };
@@ -131,6 +132,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Unauthorized Access!")
     }
     try {
+        // a backend can decode an expired JWT
         const decoded = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
         if (!decoded) {
             throw new ApiError(401, "Invalid Refresh!")
@@ -139,14 +141,16 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         if (!user) {
             throw new ApiError(401, "Malformed Refresh!")
         }
+
+        // Todo:  const hashedToken = user.hashToken(incomingRefreshToken);
+        // if (hashedToken !== user.refreshToken) {
+        //     throw new ApiError(401, "Refresh token expired or reused");
+        // }
         if (incomingRefreshToken !== user?.refreshToken) {
             throw new ApiError(401, "Refresh token is used or expired!")
         }
 
         const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
-
-        user.refreshToken = refreshToken;
-        await user.save();
 
         const options = {
             httpOnly: true,

@@ -218,11 +218,111 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, {isPublished: video.isPublished}, "Published status changed successfully"))
 })
 
+const getVideoFeed = asyncHandler(async (req, res) => {
+
+    const { page = 1, limit = 10 } = req.query;
+    
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    
+    const userId = req.user?._id
+        ? new mongoose.Types.ObjectId(req.user._id)
+        : null;
+
+    const aggregate = Video.aggregate([
+        {
+            $match: { isPublished: true }
+        },
+        {
+            $sort: { createdAt: -1 }
+        },
+
+        // 🔹 get owner info (username + avatar)
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            _id: 0,
+                            username: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: {
+                path: "$owner",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+
+        // 🔹 likes lookup
+        {
+            $lookup: {
+                from: "likes",
+                let: { videoId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    { $eq: ["$targetId", "$$videoId"] },
+                                    { $eq: ["$targetModel", "Video"] }
+                                ]
+                            }
+                        }
+                    }
+                ],
+                as: "likes"
+            }
+        },
+
+        // 🔹 computed fields
+        {
+            $addFields: {
+                likesCount: { $size: "$likes" },
+                isLikedByMe: userId
+                    ? { $in: [userId, "$likes.user"] }
+                    : false,
+
+                // flatten owner fields
+                username: "$owner.username",
+                avatar: "$owner.avatar"
+            }
+        },
+
+        // 🔹 cleanup
+        {
+            $project: {
+                likes: 0,
+                owner: 0,
+                __v: 0
+            }
+        }
+    ]);
+
+    const options = {
+        page: pageNum,
+        limit: limitNum
+    };
+    
+    const result = await Video.aggregatePaginate(aggregate, options);
+    
+    res.status(200).json(new ApiResponse(200, result, "Videos Fetched Successfully"))
+})
+
 export {
     getAllVideos,
     publishAVideo,
     getVideoById,
     updateVideo,
     deleteVideo,
-    togglePublishStatus
+    togglePublishStatus,
+    getVideoFeed
 }
