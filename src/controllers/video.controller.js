@@ -293,7 +293,8 @@ const getVideoFeed = asyncHandler(async (req, res) => {
 
                 // flatten owner fields
                 username: "$owner.username",
-                avatar: "$owner.avatar"
+                avatar: "$owner.avatar",
+                ownerId: "$owner._id"
             }
         },
 
