@@ -230,7 +230,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 const getVideoFeed = asyncHandler(async (req, res) => {
 
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, query } = req.query;
     
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 10;
@@ -239,9 +239,15 @@ const getVideoFeed = asyncHandler(async (req, res) => {
         ? new mongoose.Types.ObjectId(req.user._id)
         : null;
 
+    const match = { isPublished: true }
+
+    if (query && String(query).trim() !== "") {
+        match.title = query
+    }
+    
     const aggregate = Video.aggregate([
         {
-            $match: { isPublished: true }
+            $match: match
         },
         {
             $sort: { createdAt: -1 }
