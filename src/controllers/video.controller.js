@@ -242,9 +242,8 @@ const getVideoFeed = asyncHandler(async (req, res) => {
     const match = { isPublished: true }
 
     if (query && String(query).trim() !== "") {
-        match.title = query
+        match.title = { $regex: String(query).trim(), $options: "i" };
     }
-    
     const aggregate = Video.aggregate([
         {
             $match: match
