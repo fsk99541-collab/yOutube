@@ -20,7 +20,8 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     // build match stage
     const match = {
-        owner: new mongoose.Types.ObjectId(userId)
+        owner: new mongoose.Types.ObjectId(userId),
+        isPublished: true
     };
 
     if (query && String(query).trim() !== "") {
@@ -91,7 +92,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     // TODO: get video, upload to cloudinary, create video
 
     if (!title || !description) {
-        throw new ApiError("401", "All fields are required.")
+        throw new ApiError("400", "All fields are required.")
     }
 
     const videoFile = req.files?.videoFile?.[0];
@@ -117,7 +118,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     const thumbnailResponse = await uploadOnCloudinary(thumbnail.buffer);
     
     if (!videoFileResponse || !thumbnailResponse) {
-        throw new ApiError(401, "video or thumbnail upload failed.")
+        throw new ApiError(422, "video or thumbnail upload failed.")
     }
 
     const newVideo = await Video.create({
@@ -135,46 +136,48 @@ const publishAVideo = asyncHandler(async (req, res) => {
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: get video by id
-    if (!videoId) {
-        throw new ApiError("401", "Video ID is required.")
+    if (!videoId || !isValidObjectId(videoId)) {
+        throw new ApiError(400, "Invalid video ID.")
     }
-    const video = await Video.findById(videoId);
-    res.status(200).json(new ApiResponse(201, video, "Video fetched successfully"))
+    const video = await Video.findOne({ _id: videoId, isPublished: true });
+
+    if (!video) {
+        throw new ApiError(404, "video does not exists")
+    }
+    res.status(200).json(new ApiResponse(200, video, "Video fetched successfully"))
 })
 
 const updateVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     const { title, description } = req.body
-    //TODO: update video details like title, description, thumbnail
+    const thumbnailBuffer = req.file?.buffer;
 
     if (!videoId) throw new ApiError(400, "Video ID is required.");
-    if (!title || title.trim() === "") throw new ApiError(400, "Title is required.");
-    if (!description || description.trim() === "") throw new ApiError(400, "Description is required.");
+    if (!title.trim()) throw new ApiError(400, "Title is required.");
+    if (!description.trim()) throw new ApiError(400, "Description is required.");
 
-    // find video document
     const video = await Video.findById(videoId);
     if (!video) throw new ApiError(404, "Video doesn't exist.");
 
-    const thumbnailBuffer = req.file?.buffer;
+    let thumbnailResponse;
 
-    if (!thumbnailBuffer) {
-        throw new ApiError(404, "Thumbnail is missing.");
-    }    
-
-    const thumbnailResult = await removeFromCloudinary(video.thumbnail);
-    // console.log(thumbnailResult.result);
-    
-    if (!thumbnailResult?.result) {
-        throw new ApiError(400, "Thumbnail failed to delete.");
+    if (thumbnailBuffer) {
+        thumbnailResponse = await uploadOnCloudinary(thumbnailBuffer);
+        if (!thumbnailResponse?.secure_url) {
+            throw new ApiError(500, "Thumbnail upload failed.");
+        }
+        const deleteResult = await removeFromCloudinary(video.thumbnail);
+        if (!deleteResult?.result) {
+            throw new ApiError(500, "Thumbnail failed to delete.");
+        }
+        video.thumbnail = thumbnailResponse?.secure_url;
     }
-
-    const thumbnailResponse = await uploadOnCloudinary(thumbnailBuffer);
 
     video.title = title;
     video.description = description;
-    video.thumbnail = thumbnailResponse?.secure_url || "";
 
-    await video.save();
+    await video.save({ validateBeforeSave: false });
+    
     res.status(200).json(new ApiResponse(200, video, "Video updated successfully"))
 })
 
@@ -182,29 +185,35 @@ const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: delete video
     if (!videoId) {
-        throw new ApiError("401", "Video ID is required.")
+        throw new ApiError(400, "Video ID is required.")
     }
 
     const video = await Video.findById(videoId);
     if (!video) {
         throw new ApiError(404, "Video not found.");
     }
-    const videoResult = await removeFromCloudinary(video.videoFile)
-    await removeFromCloudinary(video.thumbnail)
 
-    if (!videoResult) {
-        throw new ApiError(500, "Failed to delete video from Cloudinary.");
+    const [videoResult, thumbnailResult] = await Promise.all([
+        removeFromCloudinary(video.videoFile),
+        removeFromCloudinary(video.thumbnail)
+    ])
+
+    if (videoResult?.result !== "ok") {
+        throw new ApiError(500, "Failed to delete video.");
+    }
+    if (thumbnailResult?.result !== "ok") {
+        throw new ApiError(500, "Failed to delete thumbnail.");
     }
 
     await video.deleteOne();
 
-    res.status(200).json(new ApiResponse(201, {}, "Video deleted successfully"))
+    res.status(200).json(new ApiResponse(200, {}, "Video deleted successfully"))
 })
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     if (!videoId) {
-        throw new ApiError("401", "Video ID is required.")
+        throw new ApiError(400, "Video ID is required.")
     }
 
     const video = await Video.findById(videoId);
@@ -213,9 +222,10 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     }
 
     video.isPublished = !video.isPublished;
-    await video.save();
+    await video.save({validateBeforeSave: false});
 
-    res.status(200).json(new ApiResponse(200, {isPublished: video.isPublished}, "Published status changed successfully"))
+    res.status(200)
+        .json(new ApiResponse(200, { isPublished: video.isPublished }, "Published status changed successfully"))
 })
 
 const getVideoFeed = asyncHandler(async (req, res) => {
