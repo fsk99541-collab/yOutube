@@ -55,7 +55,7 @@ const registerUser = asyncHandler(async (req, res) => {
         coverImage: coverImage?.secure_url || "",
     });
 
-    const createdUser = await User.findById(user._id).select("-password -refreshToken");
+    const createdUser = await User.findById(user._id).select("-password -refreshToken -__v");
     if (!createdUser) throw new ApiError(500, "Something went wrong while registering the user.");
 
     return res.status(201).json(new ApiResponse(201, createdUser, "User Created Successfully!"));
@@ -63,7 +63,7 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
     if (!username && !email) {
-        throw new ApiError(400, "username or email is are required");
+        throw new ApiError(400, "A username or email is required");
     }
     const user = await User.findOne({
         $or: [{ email }, { username }],
@@ -80,7 +80,7 @@ const loginUser = asyncHandler(async (req, res) => {
         secure: true,
     };
 
-    const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken -__v");
     if (!loggedInUser) throw new ApiError(500, "Something went wrong while logging the user.");
 
     return res
@@ -217,7 +217,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 const updateUserAvatar = asyncHandler(async (req, res) => {
     const avatarLocalPath = req.file?.buffer;
-    
+
     if (!avatarLocalPath) {
         throw new ApiError(401, "Avatar must be required!")
     }

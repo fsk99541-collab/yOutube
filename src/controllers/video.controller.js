@@ -316,6 +316,7 @@ const getVideoFeed = asyncHandler(async (req, res) => {
         // 🔹 cleanup
         {
             $project: {
+                isPublished: 0,
                 likes: 0,
                 owner: 0,
                 __v: 0
