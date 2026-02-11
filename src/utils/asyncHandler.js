@@ -13,10 +13,10 @@ const asyncHandler4 = function (requestHandler) {
 
 // “curried” style
 const asyncHandler2 = (fn) =>
-  function handler(req, res, next) {
-    return Promise.resolve(fn(req, res, next)).catch(next);
+    function handler(req, res, next) {
+        return Promise.resolve(fn(req, res, next)).catch(next);
     };
-  
+
 const asyncHandler3 =
     (requestHandler) =>
         (req, res, next) =>
@@ -27,5 +27,5 @@ const asyncHandler3 =
 
 export const asyncHandler = (fn) => (req, res, next) =>
     Promise.resolve(fn(req, res, next)).catch((error) =>
-    next(error)
+        next(error)
     );

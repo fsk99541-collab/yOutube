@@ -13,11 +13,13 @@ const videoSchema = new Schema(
         },
         title: {
             type: String, 
-            required: true
+            required: true,
+            trim: true
         },
         description: {
             type: String, 
-            required: true
+            required: true,
+            trim: true
         },
         duration: {
             type: Number, 
@@ -38,9 +40,13 @@ const videoSchema = new Schema(
 
     }, 
     {
-        timestamps: true
+        timestamps: true,
     }
 )
+
+videoSchema.index({ owner: 1 });
+videoSchema.index({ createdAt: -1 });
+videoSchema.index({ views: -1 });
 
 videoSchema.plugin(mongooseAggregatePaginate);
 

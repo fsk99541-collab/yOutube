@@ -188,9 +188,12 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Password changed."))
 });
 const getCurrentUser = asyncHandler(async (req, res) => {
+    const user = await User.findById(
+        req.user?._id,
+        ).select("-password -__v");
     return res
         .status(200)
-        .json(new ApiResponse(200, req.user, "Current User Fetched Successfully."))
+        .json(new ApiResponse(200, user, "Current User Fetched Successfully."))
 });
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const { fullName, email } = req.body;
@@ -209,7 +212,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         {
             new: true
         }
-    ).select("-password");
+    ).select("-password -__v");
     await user.save();
     return res
         .status(200)

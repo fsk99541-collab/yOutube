@@ -16,7 +16,7 @@ const userSchema = new Schema(
             type: String,
             required: true,
             unique: true,
-            lowecase: true,
+            lowercase: true,
             trim: true, 
         },
         fullName: {
@@ -32,10 +32,10 @@ const userSchema = new Schema(
         coverImage: {
             type: String, // cloudinary url
         },
-        watchHistory: [
+        recentWatched: [
             {
-                type: Schema.Types.ObjectId,
-                ref: "Video"
+                videoId: { type: Schema.Types.ObjectId, ref: "Video" },
+                watchedAt: { type: Date, default: Date.now }
             }
         ],
         password: {

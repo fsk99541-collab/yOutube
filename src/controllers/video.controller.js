@@ -91,7 +91,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
     // TODO: get video, upload to cloudinary, create video
 
-    if (!title || !description) {
+    if (!title?.trim() || !description?.trim()) {
         throw new ApiError("400", "All fields are required.")
     }
 
@@ -111,14 +111,14 @@ const publishAVideo = asyncHandler(async (req, res) => {
     }
 
     if (videoFile.size > 100 * 1024 * 1024) {
-        throw new ApiError(400, "Video size exceeds limit");
+        throw new ApiError(413, "Video size exceeds 100MB limit");
     }
 
     const videoFileResponse = await uploadOnCloudinary(videoFile.buffer);
     const thumbnailResponse = await uploadOnCloudinary(thumbnail.buffer);
     
-    if (!videoFileResponse || !thumbnailResponse) {
-        throw new ApiError(422, "video or thumbnail upload failed.")
+    if (!videoFileResponse?.secure_url || !thumbnailResponse?.secure_url) {
+        throw new ApiError(422, "Upload failed.")
     }
 
     const newVideo = await Video.create({
@@ -130,7 +130,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
         owner: req.user?._id
     });
     
-    res.status(200).json(new ApiResponse(201, { video: newVideo }, "A new video added successfully"))
+    res.status(201).json(new ApiResponse(201, { video: newVideo }, "A new video added successfully"))
 })
 
 const getVideoById = asyncHandler(async (req, res) => {
@@ -235,6 +235,7 @@ const getVideoFeed = asyncHandler(async (req, res) => {
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 10;
     
+    // for checking, did the logged in user like the video?
     const userId = req.user?._id
         ? new mongoose.Types.ObjectId(req.user._id)
         : null;
