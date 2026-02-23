@@ -62,13 +62,19 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 const loginUser = asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
-    if (!username && !email) {
-        throw new ApiError(400, "A username or email is required");
+    if ((!username && !email) || !password) {
+        throw new ApiError(400, "Username/email and password are required");
     }
-    const user = await User.findOne({
-        $or: [{ email }, { username }],
-    });
-    if (!user) throw new ApiError(404, "User doesn't Existed.");
+    let query;
+
+    if (email) {
+        query = { email: email.toLowerCase() };
+    } else {
+        query = { username };
+    }
+    const user = await User.findOne(query);
+    
+    if (!user) throw new ApiError(404, "User does not exist.");
 
     const isValidPassword = await user.isPasswordCorrect(password);
     if (!isValidPassword) throw new ApiError(401, "Invalid user credentials");
@@ -89,7 +95,7 @@ const loginUser = asyncHandler(async (req, res) => {
         .cookie("refreshToken", refreshToken, options)
         .json(
             new ApiResponse(
-                201,
+                200,
                 {
                     user: loggedInUser,
                     accessToken,
