@@ -1,0 +1,28 @@
+import { Router } from "express";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { upload } from "../utils/multer.js"
+import * as postController from "../controllers/post.controller.js";
+const router = Router();
+
+// post crud
+router.post("/", verifyJWT, upload.array("images", 4), postController.createPost);
+router.patch("/:postId", verifyJWT, upload.array("images", 4), postController.updatePost);
+router.delete("/:postId", verifyJWT, postController.deletePost);
+
+// feed & user
+router.get("/feed", postController.getFeed);
+router.get("/user/:userId", postController.getUserPosts);
+
+// likes
+router.post("/:postId/like", verifyJWT, postController.likePost);
+router.delete("/:postId/like", verifyJWT, postController.unlikePost);
+router.get("/:postId/likes", postController.getPostLikes);
+
+// comments
+router.post("/:postId/comments", verifyJWT, postController.addComment);
+router.get("/:postId/comments", postController.getComments);
+router.delete("/:postId/comments/:commentId", verifyJWT, postController.deleteComment);
+
+
+
+export default router;
