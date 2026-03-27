@@ -138,7 +138,10 @@ const getFeed = asyncHandler(async (req, res) => {
         {
             $lookup: {
                 from: "likes",
-                let: { postId: "$_id" },
+                let: {
+                    postId: "$_id",
+                    userId: new mongoose.Types.ObjectId(req.user._id) // ensure ObjectId
+                },
                 pipeline: [
                     {
                         $match: {
@@ -146,7 +149,7 @@ const getFeed = asyncHandler(async (req, res) => {
                                 $and: [
                                     { $eq: ["$targetId", "$$postId"] },
                                     { $eq: ["$targetModel", "Post"] },
-                                    { $eq: ["$user", userId] }
+                                    { $eq: ["$user", "$$userId"] }
                                 ]
                             }
                         }

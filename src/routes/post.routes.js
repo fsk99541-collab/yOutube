@@ -10,8 +10,8 @@ router.patch("/:postId", verifyJWT, upload.array("images", 4), postController.up
 router.delete("/:postId", verifyJWT, postController.deletePost);
 
 // feed & user
-router.get("/feed", postController.getFeed);
-router.get("/user/:userId", postController.getUserPosts);
+router.get("/feed", verifyJWT, postController.getFeed);
+router.get("/user/:userId", verifyJWT, postController.getUserPosts);
 
 // likes
 router.post("/:postId/like", verifyJWT, postController.likePost);
