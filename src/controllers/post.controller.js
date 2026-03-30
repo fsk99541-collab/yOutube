@@ -42,8 +42,13 @@ const createPost = asyncHandler(async (req, res) => {
             files.map(file => uploadOnCloudinary(file.buffer))
         );
 
-        // Map to secure_urls and filter out any failed uploads
-        images = uploads.filter(Boolean).map(u => u.secure_url);
+        // Map to objects with url, public_id, width, and height
+        images = uploads.filter(Boolean).map(u => ({
+            url: u.secure_url,
+            public_id: u.public_id,
+            width: u.width,
+            height: u.height
+        }));
 
         // Fallback: If files were sent but none uploaded successfully
         if (images.length === 0 && files.length > 0) {
@@ -68,7 +73,7 @@ const createPost = asyncHandler(async (req, res) => {
         // ROLLBACK: If DB creation fails, delete the images we just uploaded
         if (images.length > 0) {
             // Don't 'await' this; just fire and forget or log errors
-            Promise.all(images.map(url => removeFromCloudinary(url)))
+            Promise.all(images.map(img => removeFromCloudinary(img.url)))
                 .catch(err => console.error("Rollback cleanup failed:", err));
         }
 
@@ -353,19 +358,24 @@ const updatePost = asyncHandler(async (req, res) => {
             req.files.map(file => uploadOnCloudinary(file.buffer))
         );
 
-        const newUrls = uploads.filter(Boolean).map(u => u.secure_url);
+        const newImages = uploads.filter(Boolean).map(u => ({
+            url: u.secure_url,
+            public_id: u.public_id,
+            width: u.width,
+            height: u.height
+        }));
 
-        if (newUrls.length === 0) {
+        if (newImages.length === 0) {
             throw new ApiError(500, "Image upload failed");
         }
 
         // Only update the model if uploads succeeded
-        post.images = newUrls;
+        post.images = newImages;
 
         // Cleanup: Now safely delete old images from Cloudinary
         // Note: Don't 'await' this if you want a faster response, 
         // or wrap in try/catch to ensure it doesn't crash the main update.
-        Promise.all(oldImages.map(img => removeFromCloudinary(img)))
+        Promise.all(oldImages.map(img => removeFromCloudinary(img.url)))
             .catch(err => console.error("Cloudinary cleanup failed:", err));
     }
 
@@ -395,7 +405,7 @@ const deletePost = asyncHandler(async (req, res) => {
     }
 
     await Promise.all(
-        post.images.map((img) => removeFromCloudinary(img))
+        post.images.map((img) => removeFromCloudinary(img.url))
     )
 
     await Post.updateOne(
@@ -697,7 +707,7 @@ const deleteComment = asyncHandler(async (req, res) => {
         targetId: postId,
         user: req.user._id // Authorization check happens here
     })
-    
+
     if (!deletedComment) {
         throw new ApiError(404, "Comment not found or you are not authorized to delete it")
     }
