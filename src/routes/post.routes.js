@@ -4,14 +4,17 @@ import { upload } from "../utils/multer.js"
 import * as postController from "../controllers/post.controller.js";
 const router = Router();
 
-// post crud
-router.post("/", verifyJWT, upload.array("images", 4), postController.createPost);
-router.patch("/:postId", verifyJWT, upload.array("images", 4), postController.updatePost);
-router.delete("/:postId", verifyJWT, postController.deletePost);
-
 // feed & user
 router.get("/feed", verifyJWT, postController.getFeed);
 router.get("/user/:userId", verifyJWT, postController.getUserPosts);
+
+
+// post crud
+router.post("/", verifyJWT, upload.array("images", 4), postController.createPost);
+router.get("/:postId", postController.getPostById);
+router.patch("/:postId", verifyJWT, upload.array("images", 4), postController.updatePost);
+router.delete("/:postId", verifyJWT, postController.deletePost);
+
 
 // likes
 router.post("/:postId/like", verifyJWT, postController.likePost);

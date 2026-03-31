@@ -697,7 +697,7 @@ const deleteComment = asyncHandler(async (req, res) => {
         targetId: postId,
         user: req.user._id // Authorization check happens here
     })
-    
+
     if (!deletedComment) {
         throw new ApiError(404, "Comment not found or you are not authorized to delete it")
     }
@@ -713,6 +713,112 @@ const deleteComment = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, null, "Comment deleted successfully"))
 })
 
+// GET POST BY ID
+const getPostById = asyncHandler(async (req, res) => {
+    const { postId } = req.params
+
+    if (!isValidObjectId(postId)) {
+        throw new ApiError(400, "Invalid Post ID")
+    }
+
+    const currentUserId = req.user?._id
+        ? new mongoose.Types.ObjectId(req.user._id)
+        : null
+
+    const aggregate = Post.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(postId), isDeleted: false } },
+
+        // author lookup
+        {
+            $lookup: {
+                from: "users",
+                localField: "author",
+                foreignField: "_id",
+                as: "author",
+                pipeline: [
+                    {
+                        $project: {
+                            username: 1,
+                            fullName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: {
+                path: "$author",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+
+        // flatten author
+        {
+            $addFields: {
+                authorId: "$author._id",
+                username: "$author.username",
+                fullName: "$author.fullName",
+                avatar: "$author.avatar"
+            }
+        },
+
+        // likes lookup
+        {
+            $lookup: {
+                from: "likes",
+                let: {
+                    postId: "$_id",
+                    userId: currentUserId
+                },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    { $eq: ["$targetId", "$$postId"] },
+                                    { $eq: ["$targetModel", "Post"] },
+                                    { $eq: ["$user", "$$userId"] }
+                                ]
+                            }
+                        }
+                    },
+                    { $limit: 1 }
+                ],
+                as: "likedStatus"
+            }
+        },
+
+        {
+            $addFields: {
+                isLiked: currentUserId
+                    ? { $gt: [{ $size: "$likedStatus" }, 0] }
+                    : false
+            }
+        },
+
+        // cleanup
+        {
+            $project: {
+                author: 0,
+                likedStatus: 0,
+                isDeleted: 0,
+                __v: 0
+            }
+        }
+    ])
+
+    const posts = await aggregate.exec()
+
+    if (!posts || posts.length === 0) {
+        throw new ApiError(404, "Post not found")
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, posts[0], "Post fetched successfully"))
+})
+
 export {
     createPost,
     getFeed,
@@ -724,5 +830,6 @@ export {
     getUserPosts,
     addComment,
     getComments,
-    deleteComment
+    deleteComment,
+    getPostById
 }
