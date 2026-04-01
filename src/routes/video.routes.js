@@ -7,9 +7,11 @@ import {
     togglePublishStatus,
     updateVideo,
     getVideoFeed,
+    addViewController
 } from "../controllers/video.controller.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
 import { upload } from "../utils/multer.js"
+import { syncViewsToDB } from "../utils/viewSync.js";
 
 const router = Router();
 
@@ -34,11 +36,17 @@ router.route("/")
 );
     
 router.route("/feed").get(getVideoFeed);
-
+router.get("/test-sync", async (req, res) => {
+    await syncViewsToDB();
+    console.log("synced")
+    res.send("Synced");
+});
 router.route("/:videoId")
     .get(getVideoById)
     .delete(deleteVideo)
     .patch(upload.single("thumbnail"), updateVideo);
+
+router.route("/:videoId/view").post(addViewController);
 
 router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
 
