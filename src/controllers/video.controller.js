@@ -1,10 +1,10 @@
 import mongoose, { isValidObjectId } from "mongoose"
 import { Video } from "../models/video.model.js"
-import redis from "../utils/redis.js";
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { removeFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
+import { recordView } from "../utils/recordView.js"
 
 const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc", userId } = req.query;
@@ -335,29 +335,21 @@ const getVideoFeed = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, result, "Videos Fetched Successfully"))
 })
 
-const addViewController = asyncHandler(async (req, res) => {
+const addView = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
     const { deviceId } = req.body;
 
-    const viewer = req.user?._id || deviceId
-    if (!viewer) {
+    const viewerId = req.user?._id || deviceId || req.ip
+    if (!viewerId) {
         throw new ApiError(400, "Viewer Required")
     }
 
-    const userSetKey = `views:${videoId}:users`
-    const countKey = `views:${videoId}`
+    const result = await recordView(videoId, viewerId);
 
-    const added = await redis.sadd(userSetKey, viewer)
-
-    if (added === 1) {
-        await redis.incr(countKey)
-        await redis.expire(userSetKey, 86400) //24h
-    }
-    console.log("reached end")
     return res
         .status(200)
         .json(
-            new ApiResponse(200, {}, "View Counted")
+            new ApiResponse(200, result, "View Counted")
         )
 })
 
@@ -369,5 +361,5 @@ export {
     deleteVideo,
     togglePublishStatus,
     getVideoFeed,
-    addViewController
+    addView
 }
