@@ -1,17 +1,19 @@
 import mongoose, { isValidObjectId } from "mongoose"
 import { Video } from "../models/video.model.js"
+import { User } from "../models/user.model.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { removeFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
 import { recordView } from "../utils/recordView.js"
 
-const getAllVideos = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc", userId } = req.query;
+const getUserVideos = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc", username } = req.query;
 
-    // validate userId
-    if (!userId || !isValidObjectId(userId)) {
-        throw new ApiError(400, "Invalid or missing userId");
+    const user = await User.findOne({ username }).select("_id");
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
     }
 
     const pageNum = parseInt(page, 10) || 1;
@@ -20,7 +22,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     // build match stage
     const match = {
-        owner: new mongoose.Types.ObjectId(userId),
+        owner: user._id,
         isPublished: true
     };
 
@@ -354,7 +356,7 @@ const addView = asyncHandler(async (req, res) => {
 })
 
 export {
-    getAllVideos,
+    getUserVideos,
     publishAVideo,
     getVideoById,
     updateVideo,

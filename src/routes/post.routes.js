@@ -6,7 +6,7 @@ const router = Router();
 
 // feed & user
 router.get("/feed", verifyJWT, postController.getFeed);
-router.get("/user/:userId", verifyJWT, postController.getUserPosts);
+router.get("/user/:username", verifyJWT, postController.getUserPosts);
 
 
 // post crud

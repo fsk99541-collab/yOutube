@@ -1,6 +1,7 @@
 import mongoose, { isValidObjectId } from "mongoose"
 import { Post } from "../models/post.model.js"
 import { Comment } from "../models/comment.model.js"
+import { User } from "../models/user.model.js"
 import { Like } from "../models/like.model.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
@@ -189,11 +190,13 @@ const getFeed = asyncHandler(async (req, res) => {
 
 // GET USER POSTS
 const getUserPosts = asyncHandler(async (req, res) => {
-    const { userId } = req.params
+    const { username } = req.params
     let { page = 1, limit = 10 } = req.query
 
-    if (!isValidObjectId(userId)) {
-        throw new ApiError(400, "Invalid User ID")
+    const user = await User.findOne({ username }).select("_id");
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
     }
 
     page = Number(page)
@@ -204,11 +207,11 @@ const getUserPosts = asyncHandler(async (req, res) => {
         : null
 
     const match = {
-        author: new mongoose.Types.ObjectId(userId),
+        author: user._id,
         isDeleted: false,
         $or: [
             { visibility: "public" },
-            ...(currentUserId && currentUserId.toString() === userId ? [{}] : [])
+            ...(currentUserId && currentUserId.toString() === user._id ? [{}] : [])
         ]
     }
 
@@ -491,7 +494,6 @@ const unlikePost = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, null, "Post unliked"));
 });
-
 
 
 const getPostLikes = asyncHandler(async (req, res) => {
