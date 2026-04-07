@@ -1,9 +1,7 @@
-import { isValidObjectId } from "mongoose";
 import redis from "./redis.js";
 import { Video } from "../models/video.model.js";
-import { ApiError } from "./ApiError.js";
 
-const VIEW_THRESHOLD = 5;
+const VIEW_THRESHOLD = 2;
 const DEDUP_TTL = 3600;
 
 /**
