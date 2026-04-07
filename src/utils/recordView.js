@@ -1,57 +1,72 @@
+import { isValidObjectId } from "mongoose";
 import redis from "./redis.js";
 import { Video } from "../models/video.model.js";
-
-// export const syncViewsToDB = async () => {
-//     const keys = await redis.keys("views:*");
-
-//     for (const key of keys) {
-//         if (key.includes(":users")) continue;
-
-//         const videoId = key.split(":")[1];
-//         const views = Number(await redis.get(key));
-
-//         if (views > 0) {
-//             await Video.findByIdAndUpdate(videoId, {
-//                 $inc: { views },
-//             });
-
-//             await redis.del(key);
-//         }
-//     }
-// };
+import { ApiError } from "./ApiError.js";
 
 const VIEW_THRESHOLD = 5;
 const DEDUP_TTL = 3600;
 
-const recordView = async (videoId, userId) => {
-    // dedup check
-    const dedupKey = `view:dedup:${videoId}:${userId}`;
-    const alreadySeen = await redis.get(dedupKey);
-    if (alreadySeen) return { counted: false };
+/**
+ * Records a video view with deduplication and batched database updates
+ * @param {string} videoId - MongoDB video ID
+ * @param {string} viewerId - User ID, device ID, or IP address
+ * @returns {Promise<{counted: boolean, buffered?: number}>}
+ * @throws {ApiError} If videoId or viewerId is invalid
+ */
+const recordView = async (videoId, viewerId) => {
+    const dedupKey = `view:dedup:${videoId}:${viewerId}`;
 
-    // mark seen
-    await redis.set(dedupKey, 1, { ex: DEDUP_TTL });
+    // Mark as seen - nx: true means set only if key doesn't exist
+    const isNewView = await redis.set(dedupKey, 1, {
+        ex: DEDUP_TTL,
+        nx: true
+    });
 
-    // increment buffer count
-    const bufferKey = `view:buffer:{videoId}`;
+    // If key already exists, view was recently recorded (duplicate)
+    if (!isNewView) {
+        return { counted: false };
+    }
+
+    // Increment buffer count atomically
+    const bufferKey = `view:buffer:${videoId}`;
     const newCount = await redis.incr(bufferKey);
 
-    // flush to database when threshold hit
+    // Set expiry on buffer key to auto-cleanup if not flushed
+    await redis.expire(bufferKey, 3600);
+
+    // Flush to database when threshold is reached
     if (newCount >= VIEW_THRESHOLD) {
-        await flushToDB(videoId, newCount);
-        await redis.del(bufferKey);
+        // Use GETDEL to atomically get and delete to prevent race conditions
+        const countToFlush = await redis.getdel(bufferKey);
+        if (countToFlush > 0) {
+            await flushToDB(videoId, parseInt(countToFlush));
+        }
     }
 
     return { counted: true, buffered: newCount };
-}
+};
 
+/**
+ * Flushes buffered view count to database
+ * @param {string} videoId - MongoDB video ID
+ * @param {number} count - Number of views to increment
+ */
 async function flushToDB(videoId, count) {
-    await Video.findByIdAndUpdate(
+    if (count <= 0) {
+        return;
+    }
+
+    const result = await Video.findByIdAndUpdate(
         videoId,
         {
             $inc: { views: count }
-        }
+        },
+        { new: false, runValidators: false }
     );
+
+    if (!result) {
+        console.warn(`Video not found for view flush: ${videoId}`);
+    }
 }
 
 export { recordView };

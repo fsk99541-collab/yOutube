@@ -72,7 +72,7 @@ const getUserVideos = asyncHandler(async (req, res) => {
                 __v: 0
             }
         }
-        
+
     ]);
 
     const options = {
@@ -118,7 +118,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
     const videoFileResponse = await uploadOnCloudinary(videoFile.buffer);
     const thumbnailResponse = await uploadOnCloudinary(thumbnail.buffer);
-    
+
     if (!videoFileResponse?.secure_url || !thumbnailResponse?.secure_url) {
         throw new ApiError(422, "Upload failed.")
     }
@@ -131,7 +131,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
         thumbnail: thumbnailResponse?.secure_url || "",
         owner: req.user?._id
     });
-    
+
     res.status(201).json(new ApiResponse(201, { video: newVideo }, "A new video added successfully"))
 })
 
@@ -179,7 +179,7 @@ const updateVideo = asyncHandler(async (req, res) => {
     video.description = description;
 
     await video.save({ validateBeforeSave: false });
-    
+
     res.status(200).json(new ApiResponse(200, video, "Video updated successfully"))
 })
 
@@ -224,7 +224,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     }
 
     video.isPublished = !video.isPublished;
-    await video.save({validateBeforeSave: false});
+    await video.save({ validateBeforeSave: false });
 
     res.status(200)
         .json(new ApiResponse(200, { isPublished: video.isPublished }, "Published status changed successfully"))
@@ -233,10 +233,10 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 const getVideoFeed = asyncHandler(async (req, res) => {
 
     const { page = 1, limit = 10, query } = req.query;
-    
+
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 10;
-    
+
     // for checking, did the logged in user like the video?
     const userId = req.user?._id
         ? new mongoose.Types.ObjectId(req.user._id)
@@ -331,9 +331,9 @@ const getVideoFeed = asyncHandler(async (req, res) => {
         page: pageNum,
         limit: limitNum
     };
-    
+
     const result = await Video.aggregatePaginate(aggregate, options);
-    
+
     res.status(200).json(new ApiResponse(200, result, "Videos Fetched Successfully"))
 })
 
@@ -341,9 +341,23 @@ const addView = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
     const { deviceId } = req.body;
 
+    if (!videoId || typeof videoId !== 'string') {
+        throw new ApiError(
+            400,
+            "Invalid video ID"
+        );
+    }
+
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(
+            400,
+            "Invalid video ID format"
+        );
+    }
+
     const viewerId = req.user?._id || deviceId || req.ip
     if (!viewerId) {
-        throw new ApiError(400, "Viewer Required")
+        throw new ApiError(400, "ViewerId Required")
     }
 
     const result = await recordView(videoId, viewerId);
