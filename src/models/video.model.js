@@ -4,12 +4,10 @@ import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 const videoSchema = new Schema(
     {
         videoFile: {
-            type: String, //cloudinary url
-            required: true
+            type: String,
         },
         thumbnail: {
-            type: String, //cloudinary url
-            required: true
+            type: String,
         },
         title: {
             type: String, 
@@ -23,7 +21,6 @@ const videoSchema = new Schema(
         },
         duration: {
             type: Number, 
-            required: true
         },
         views: {
             type: Number,
@@ -36,8 +33,12 @@ const videoSchema = new Schema(
         owner: {
             type: Schema.Types.ObjectId,
             ref: "User"
+        },
+        status: {
+            type: String,
+            enum: ["uploading", "processing", "ready", "failed"],
+            default: "uploading",
         }
-
     }, 
     {
         timestamps: true,
@@ -47,6 +48,7 @@ const videoSchema = new Schema(
 videoSchema.index({ owner: 1 });
 videoSchema.index({ createdAt: -1 });
 videoSchema.index({ views: -1 });
+videoSchema.index({ status: 1, createdAt: -1 });
 
 videoSchema.plugin(mongooseAggregatePaginate);
 

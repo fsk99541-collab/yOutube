@@ -1,6 +1,6 @@
 {
-  "name": "package-structure",
-  "version": "1.0.0",
+  "name": "youtubex",
+  "version": "1.1.0",
   "description": "learning package-structure and handling error and use async handler",
   "license": "ISC",
   "author": "Mohd Afzal",

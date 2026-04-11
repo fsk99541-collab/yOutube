@@ -20,19 +20,7 @@ router.use(verifyJWT);
 
 router.route("/")
     .get(getUserVideos)
-    .post(
-        upload.fields([
-            {
-                name: "videoFile",
-                maxCount: 1
-            },
-            {
-                name: "thumbnail",
-                maxCount: 1
-            }
-        ]),
-        publishAVideo
-);
+    .post(publishAVideo);
     
 router.route("/feed").get(getVideoFeed);
 
