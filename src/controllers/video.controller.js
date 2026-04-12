@@ -6,7 +6,6 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { removeFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
 import { recordView } from "../utils/recordView.js"
-import { v2 as cloudinary } from "cloudinary"
 
 const getUserVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc", username } = req.query;
@@ -92,57 +91,48 @@ const getUserVideos = asyncHandler(async (req, res) => {
 
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
+    // TODO: get video, upload to cloudinary, create video
 
     if (!title?.trim() || !description?.trim()) {
         throw new ApiError("400", "All fields are required.")
     }
 
+    const videoFile = req.files?.videoFile?.[0];
+    const thumbnail = req.files?.thumbnail?.[0];
+
+    if (!videoFile || !thumbnail) {
+        throw new ApiError(400, "Video file and thumbnail are required.");
+    }
+
+    // MIME validation
+    if (!videoFile.mimetype.startsWith("video/")) {
+        throw new ApiError(400, "Invalid video format");
+    }
+    if (!thumbnail.mimetype.startsWith("image/")) {
+        throw new ApiError(400, "Invalid image format");
+    }
+
+    if (videoFile.size > 100 * 1024 * 1024) {
+        throw new ApiError(413, "Video size exceeds 100MB limit");
+    }
+
+    const videoFileResponse = await uploadOnCloudinary(videoFile.buffer);
+    const thumbnailResponse = await uploadOnCloudinary(thumbnail.buffer);
+
+    if (!videoFileResponse?.secure_url || !thumbnailResponse?.secure_url) {
+        throw new ApiError(422, "Upload failed.")
+    }
+
     const newVideo = await Video.create({
         title: title,
         description: description,
-        owner: req.user?._id,
-        status: "uploading"
+        duration: videoFileResponse?.duration || 0.0,
+        videoFile: videoFileResponse?.secure_url || "",
+        thumbnail: thumbnailResponse?.secure_url || "",
+        owner: req.user?._id
     });
-    
-    // Generate cloudinary signature -
-    const timestamp = Math.round(Date.now() / 1000);
-    // const params = {
-    //     context: `post_id=${newVideo._id}`,
-    //     folder: "videos",
-    //     notification_url: `${process.env.BASE_URL}/api/v1/cloudinary/webhook`,
-    //     public_id: newVideo._id.toString(),
-    //     resource_type: "video",
-    //     timestamp,
-    // }
-    const paramsToSign = {
-        context: `post_id=${newVideo._id}`,
-        folder: "videos",
-        public_id: newVideo._id.toString(),
-        timestamp,
-    };
-    console.log("paramsToSign", paramsToSign)
-    
-    const signature = cloudinary.utils.api_sign_request(
-        paramsToSign,
-        process.env.CLOUDINARY_API_SECRET
-    );
-    
-    console.log("signature", signature)
 
-    res.status(201).json(new ApiResponse(201, {
-        videoId: newVideo._id,
-        cloudinary: {
-            timestamp,
-            signature,
-            apiKey: process.env.CLOUDINARY_API_KEY,
-            cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-            folder: "videos",
-            public_id: newVideo._id,
-            context: paramsToSign.context,
-            resource_type: "video",
-            notification_url: paramsToSign.notification_url
-        }
-    }, "Video upload initialized successfully"))
+    res.status(201).json(new ApiResponse(201, { video: newVideo }, "A new video added successfully"))
 })
 
 const getVideoById = asyncHandler(async (req, res) => {

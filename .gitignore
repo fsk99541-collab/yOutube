@@ -119,6 +119,3 @@ dist
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
 .DS_Store
-
-#These are my files that is where i test some scripts
-script.js
