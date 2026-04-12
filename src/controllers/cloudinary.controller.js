@@ -1,15 +1,16 @@
 import { v2 as cloudinary } from "cloudinary";
-// import crypto from "crypto";
+import crypto from "crypto";
 import { ApiError } from "../utils/ApiError.js";
+import { Video } from "../models/video.model.js";
 
 function verifySignature(body, timestamp, signature) {
-    // const payload = `timestamp=${timestamp}${JSON.stringify(body)}`;
-    // const expected = crypto
-    //     .createHash("sha1")
-    //     .update(payload + process.env.CLOUDINARY_API_SECRET)
-    //     .digest("hex");
+    const payload = `timestamp=${timestamp}${JSON.stringify(body)}`;
+    const expected = crypto
+        .createHash("sha1")
+        .update(payload + process.env.CLOUDINARY_API_SECRET)
+        .digest("hex");
 
-    // return expected === signature;
+    return expected === signature;
 }
 
 export const generateSignature = (req, res) => {
@@ -37,6 +38,9 @@ export const generateSignature = (req, res) => {
 };
 
 export const handleWebhook = async (req, res) => {
+    
+    const { public_id, secure_url, context, resource_type, duration } = req.body;
+
     const signature = req.headers["x-cld-signature"];
     const timestamp = req.headers["x-cld-timestamp"];
 
@@ -44,19 +48,25 @@ export const handleWebhook = async (req, res) => {
         throw new ApiError(401, "Invalid signature");
     }
 
-    const { public_id, secure_url, context } = req.body;
+    console.log(req.body)
 
-    const postId = context?.custom?.post_id;
-
-    await Posts.updateOne(
-        { _id: postId },
-        {
-            $set: {
-                videoUrl: secure_url,
-                status: "uploaded"
-            }
+    if (notification_type === "upload" && resource_type === "video") {
+        const videoId = context?.custom?.video_id;
+        
+        if (videoId) {
+            await Video.updateOne(
+                { _id: videoId },
+                {
+                    $set: {
+                        videoUrl: secure_url,
+                        duration: duration, // Save this for ExoPlayer seekbars/previews
+                        status: "uploaded"
+                    }
+                }
+            );
+            console.log(`Video ${videoId} updated successfully.`);
         }
-    );
+    }
 
     res.sendStatus(200);
 };

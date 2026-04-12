@@ -3,7 +3,7 @@ import {
     deleteVideo,
     getUserVideos,
     getVideoById,
-    publishAVideo,
+    initAVideo,
     togglePublishStatus,
     updateVideo,
     getVideoFeed,
@@ -20,7 +20,7 @@ router.use(verifyJWT);
 
 router.route("/")
     .get(getUserVideos)
-    .post(publishAVideo);
+    .post(upload.single("thumbnail"), initAVideo);
     
 router.route("/feed").get(getVideoFeed);
 

@@ -24,7 +24,9 @@ const getUserVideos = asyncHandler(async (req, res) => {
     // build match stage
     const match = {
         owner: user._id,
-        isPublished: true
+        isPublished: true,
+        status: "uploaded", // STRICT ENFORCEMENT: Only return fully processed videos
+        videoUrl: { $ne: null } // Extra safety net: ensure URL actually exists
     };
 
     if (query && String(query).trim() !== "") {
@@ -90,20 +92,37 @@ const getUserVideos = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, result, "All videos fetched successfully"));
 });
 
-const publishAVideo = asyncHandler(async (req, res) => {
+const initAVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
-
+    console.log(`title: ${title}`)
     if (!title?.trim() || !description?.trim()) {
         throw new ApiError("400", "All fields are required.")
     }
 
+    const thumbnail = req.file;
+    console.log(thumbnail)
+
+    if (!thumbnail) {
+        throw new ApiError(400, "Thumbnail is required.");
+    }
+    if (!thumbnail.mimetype.startsWith("image/")) {
+        throw new ApiError(400, "Invalid image format");
+    }
+
+    const thumbnailResponse = await uploadOnCloudinary(thumbnail.buffer);
+
+    if (!thumbnailResponse) {
+        throw new ApiError(401, "video or thumbnail upload failed.")
+    }
+
     const newVideo = await Video.create({
+        thumbnail: thumbnailResponse?.secure_url || "",
         title: title,
         description: description,
         owner: req.user?._id,
         status: "uploading"
     });
-    
+
     // Generate cloudinary signature -
     const timestamp = Math.round(Date.now() / 1000);
     // const params = {
@@ -115,18 +134,18 @@ const publishAVideo = asyncHandler(async (req, res) => {
     //     timestamp,
     // }
     const paramsToSign = {
-        context: `post_id=${newVideo._id}`,
+        context: `video_id=${newVideo._id}`,
         folder: "videos",
         public_id: newVideo._id.toString(),
         timestamp,
     };
     console.log("paramsToSign", paramsToSign)
-    
+
     const signature = cloudinary.utils.api_sign_request(
         paramsToSign,
         process.env.CLOUDINARY_API_SECRET
     );
-    
+
     console.log("signature", signature)
 
     res.status(201).json(new ApiResponse(201, {
@@ -140,7 +159,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
             public_id: newVideo._id,
             context: paramsToSign.context,
             resource_type: "video",
-            notification_url: paramsToSign.notification_url
+            // notification_url: paramsToSign.notification_url
         }
     }, "Video upload initialized successfully"))
 })
@@ -151,7 +170,13 @@ const getVideoById = asyncHandler(async (req, res) => {
     if (!videoId || !isValidObjectId(videoId)) {
         throw new ApiError(400, "Invalid video ID.")
     }
-    const video = await Video.findOne({ _id: videoId, isPublished: true });
+    const video = await Video.findOne({
+        _id: videoId,
+        $or: [
+            { isPublished: true, status: "uploaded" },
+            { owner: new mongoose.Types.ObjectId(userId) }
+        ]
+    });
 
     if (!video) {
         throw new ApiError(404, "video does not exists")
@@ -244,15 +269,19 @@ const getVideoFeed = asyncHandler(async (req, res) => {
 
     const { page = 1, limit = 10, query } = req.query;
 
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
 
     // for checking, did the logged in user like the video?
     const userId = req.user?._id
         ? new mongoose.Types.ObjectId(req.user._id)
         : null;
 
-    const match = { isPublished: true }
+    const match = {
+        isPublished: true,
+        status: "uploaded", // STRICT ENFORCEMENT: Only return fully processed videos
+        videoUrl: { $ne: null } // Extra safety net: ensure URL actually exists
+    }
 
     if (query && String(query).trim() !== "") {
         match.title = { $regex: String(query).trim(), $options: "i" };
@@ -381,7 +410,7 @@ const addView = asyncHandler(async (req, res) => {
 
 export {
     getUserVideos,
-    publishAVideo,
+    initAVideo,
     getVideoById,
     updateVideo,
     deleteVideo,
